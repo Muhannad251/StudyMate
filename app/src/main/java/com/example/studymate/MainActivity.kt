@@ -1,5 +1,7 @@
 package com.example.studymate
 
+import com.example.studymate.data.Task
+import com.example.studymate.data.TaskDao
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -45,6 +47,7 @@ class MainActivity : ComponentActivity() {
             .build()
 
         val examDao = db.examDao()
+        val taskDao =db.taskDao()
 
         setContent {
             StudyMateTheme {
@@ -54,6 +57,7 @@ class MainActivity : ComponentActivity() {
 
                     DashboardScreen(
                         examDao = examDao,
+                        taskDao = taskDao,
                         modifier = Modifier.padding(innerPadding)
                     )
                 }
@@ -67,6 +71,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun DashboardScreen(
     examDao: ExamDao,
+    taskDao:TaskDao,
     modifier: Modifier = Modifier
 ) {
     var currentScreen by remember { mutableStateOf("dashboard") }
@@ -121,16 +126,51 @@ fun DashboardScreen(
         }
 
         "mobility" -> {
-            MobilityReminderScreen(
-                examDao = examDao,
+            Column(
                 modifier = modifier
-            )
+                    .fillMaxSize()
+                    .padding(16.dp)
+            ) {
+
+                Button(
+                    onClick = {
+                        currentScreen = "dashboard"
+                    }
+                ) {
+                    Text("← Zurück")
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                MobilityReminderScreen(
+                    examDao = examDao,
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
 
         "tasks" -> {
-            TaskScreen(
+            Column(
                 modifier = modifier
-            )
+                    .fillMaxSize()
+                    .padding(16.dp)
+            ) {
+
+                Button(
+                    onClick = {
+                        currentScreen = "dashboard"
+                    }
+                ) {
+                    Text("← Zurück")
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                TaskScreen(
+                    taskDao = taskDao,
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
     }
 }
@@ -139,18 +179,116 @@ fun DashboardScreen(
 
 @Composable
 fun TaskScreen(
+    taskDao: TaskDao,
     modifier: Modifier = Modifier
 ) {
+    val scope = rememberCoroutineScope()
+
+    var taskTitle by remember { mutableStateOf("") }
+    var moduleName by remember { mutableStateOf("") }
+    var taskList by remember { mutableStateOf(listOf<Task>()) }
+
+    LaunchedEffect(Unit) {
+        taskList = taskDao.getAllTasks()
+    }
+
     Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+        modifier = modifier
+            .fillMaxSize()
+            .padding(20.dp)
     ) {
-        Text(
-            text = "Task System kommt als nächstes",
-            style = MaterialTheme.typography.headlineSmall
-        )
+        Column {
+
+            Text(
+                text = "Task Manager",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            OutlinedTextField(
+                value = taskTitle,
+                onValueChange = { taskTitle = it },
+                label = { Text("Task Name") },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = moduleName,
+                onValueChange = { moduleName = it },
+                label = { Text("Modul Name") },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Button(
+                onClick = {
+                    val newTask = Task(
+                        title = taskTitle,
+                        moduleName = moduleName,
+                        isDone = false
+                    )
+
+                    scope.launch {
+                        taskDao.insertTask(newTask)
+                        taskList = taskDao.getAllTasks()
+                    }
+
+                    taskTitle = ""
+                    moduleName = ""
+                    println("Task gespeichert")
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Task speichern")
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "Gespeicherte Tasks",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            taskList.forEach { task ->
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text(
+                            text = task.title,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Text(text = "Modul: ${task.moduleName}")
+
+                        Text(
+                            text = if (task.isDone) {
+                                "Status: Erledigt"
+                            } else {
+                                "Status: Offen"
+                            }
+                        )
+                    }
+                }
+            }
+        }
     }
 }
+
 
 /* ---------------- MOBILITY SCREEN ---------------- */
 
@@ -161,6 +299,7 @@ fun MobilityReminderScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+
 
     var examName by remember { mutableStateOf("Mobile Computing Prüfung") }
     var destination by remember { mutableStateOf("TH Köln Campus Gummersbach") }
