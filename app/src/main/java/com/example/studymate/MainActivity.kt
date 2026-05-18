@@ -7,33 +7,16 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -41,17 +24,36 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.room.Room
+import com.example.studymate.data.AppDatabase
+import com.example.studymate.data.Exam
+import com.example.studymate.data.ExamDao
 import com.example.studymate.ui.theme.StudyMateTheme
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        val db = Room.databaseBuilder(
+            applicationContext,
+            AppDatabase::class.java,
+            "studymate_database"
+        )
+            .fallbackToDestructiveMigration()
+            .build()
+
+        val examDao = db.examDao()
+
         setContent {
             StudyMateTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    MobilityReminderScreen(
+                Scaffold(
+                    modifier = Modifier.fillMaxSize()
+                ) { innerPadding ->
+
+                    DashboardScreen(
+                        examDao = examDao,
                         modifier = Modifier.padding(innerPadding)
                     )
                 }
@@ -60,17 +62,113 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@Composable
-fun MobilityReminderScreen(modifier: Modifier = Modifier) {
-    val context = LocalContext.current
+/* ---------------- DASHBOARD ---------------- */
 
-    // Eingabe vom Nutzer für den Prototyp
-    val travelTime = "35 Minuten"
-    val leaveTime = "09:15 Uhr"
+@Composable
+fun DashboardScreen(
+    examDao: ExamDao,
+    modifier: Modifier = Modifier
+) {
+    var currentScreen by remember { mutableStateOf("dashboard") }
+
+    when (currentScreen) {
+
+        "dashboard" -> {
+            Column(
+                modifier = modifier
+                    .fillMaxSize()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.Center
+            ) {
+
+                Text(
+                    text = "StudyMate Dashboard",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Button(
+                    onClick = {
+                        currentScreen = "mobility"
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Mobility Reminder")
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Button(
+                    onClick = {
+                        currentScreen = "tasks"
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Task System")
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Button(
+                    onClick = { },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Progress Tracker")
+                }
+            }
+        }
+
+        "mobility" -> {
+            MobilityReminderScreen(
+                examDao = examDao,
+                modifier = modifier
+            )
+        }
+
+        "tasks" -> {
+            TaskScreen(
+                modifier = modifier
+            )
+        }
+    }
+}
+
+/* ---------------- TASK SCREEN ---------------- */
+
+@Composable
+fun TaskScreen(
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "Task System kommt als nächstes",
+            style = MaterialTheme.typography.headlineSmall
+        )
+    }
+}
+
+/* ---------------- MOBILITY SCREEN ---------------- */
+
+@Composable
+fun MobilityReminderScreen(
+    examDao: ExamDao,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
     var examName by remember { mutableStateOf("Mobile Computing Prüfung") }
     var destination by remember { mutableStateOf("TH Köln Campus Gummersbach") }
     var examTime by remember { mutableStateOf("10:00 Uhr") }
+    var examDate by remember { mutableStateOf("20.06.2026") }
 
+    val travelTime = "Wird später berechnet"
+    val leaveTime = "Wird später berechnet"
 
     Box(
         modifier = modifier
@@ -86,27 +184,32 @@ fun MobilityReminderScreen(modifier: Modifier = Modifier) {
             .padding(20.dp)
     ) {
         Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.Center
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
         ) {
-            Text(
-                text = "StudyMate",
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
 
             Text(
                 text = "Mobility Reminder",
-                style = MaterialTheme.typography.titleMedium
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             OutlinedTextField(
                 value = examName,
                 onValueChange = { examName = it },
                 label = { Text("Prüfungsname") },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = examDate,
+                onValueChange = { examDate = it },
+                label = { Text("Prüfungsdatum") },
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -130,69 +233,43 @@ fun MobilityReminderScreen(modifier: Modifier = Modifier) {
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+            Button(
+                onClick = {
+                    val uri = Uri.parse("geo:0,0?q=${Uri.encode(destination)}")
+                    val intent = Intent(Intent.ACTION_VIEW, uri)
+                    context.startActivity(intent)
+                },
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Column(
-                    modifier = Modifier.padding(20.dp)
-                ) {
-                    Text(
-                        text = examName,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
+                Text("Route in Google Maps öffnen")
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Button(
+                onClick = {
+                    val newExam = Exam(
+                        examName = examName,
+                        destination = destination,
+                        examTime = examTime,
+                        examDate = examDate
                     )
 
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    InfoRow(
-                        icon = Icons.Default.LocationOn,
-                        title = "Ziel",
-                        value = destination
-                    )
-
-                    InfoRow(
-                        icon = Icons.Default.Schedule,
-                        title = "Prüfungszeit",
-                        value = examTime
-                    )
-
-                    InfoRow(
-                        icon = Icons.Default.Schedule,
-                        title = "Geschätzte Fahrzeit",
-                        value = travelTime
-                    )
-
-                    InfoRow(
-                        icon = Icons.Default.Notifications,
-                        title = "Empfohlene Abfahrt",
-                        value = leaveTime
-                    )
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    Button(
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = {
-                            // Öffnet Google Maps mit einer Route zum Ziel
-                            val uri = Uri.parse(
-                                "https://www.google.com/maps/dir/?api=1&destination=${
-                                    Uri.encode(destination)
-                                }"
-                            )
-
-                            val intent = Intent(Intent.ACTION_VIEW, uri)
-                            context.startActivity(intent)
-                        }
-                    ) {
-                        Text(text = "Route in Google Maps öffnen")
+                    scope.launch {
+                        examDao.insertExam(newExam)
                     }
-                }
+
+                    println("Prüfung gespeichert")
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Prüfung speichern")
             }
         }
     }
 }
+
+/* ---------------- INFO ROW ---------------- */
 
 @Composable
 fun InfoRow(
@@ -208,31 +285,24 @@ fun InfoRow(
     ) {
         Icon(
             imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary
+            contentDescription = null
         )
 
-        Spacer(modifier = Modifier.padding(8.dp))
+        Spacer(modifier = Modifier.width(8.dp))
 
         Column {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                text = value,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium
-            )
+            Text(title)
+            Text(value)
         }
     }
 }
 
+/* ---------------- PREVIEW ---------------- */
+
 @Preview(showBackground = true)
 @Composable
-fun MobilityReminderPreview() {
+fun PreviewScreen() {
     StudyMateTheme {
-        MobilityReminderScreen()
+        Text("Preview")
     }
 }
