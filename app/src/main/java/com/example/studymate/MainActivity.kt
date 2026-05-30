@@ -1,5 +1,6 @@
 package com.example.studymate
 
+
 import com.example.studymate.data.Task
 import com.example.studymate.data.TaskDao
 import android.content.Intent
@@ -68,10 +69,11 @@ class MainActivity : ComponentActivity() {
 
 /* ---------------- DASHBOARD ---------------- */
 
+
 @Composable
 fun DashboardScreen(
     examDao: ExamDao,
-    taskDao:TaskDao,
+    taskDao: TaskDao,
     modifier: Modifier = Modifier
 ) {
     var currentScreen by remember { mutableStateOf("dashboard") }
@@ -79,48 +81,58 @@ fun DashboardScreen(
     when (currentScreen) {
 
         "dashboard" -> {
-            Column(
+            Box(
                 modifier = modifier
                     .fillMaxSize()
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.Center
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                MaterialTheme.colorScheme.background
+                            )
+                        )
+                    )
+                    .padding(20.dp)
             ) {
-
-                Text(
-                    text = "StudyMate Dashboard",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                Button(
-                    onClick = {
-                        currentScreen = "mobility"
-                    },
-                    modifier = Modifier.fillMaxWidth()
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.Center
                 ) {
-                    Text("Mobility Reminder")
-                }
+                    Text(
+                        text = "StudyMate",
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Dein smarter Lernplaner",
+                        style = MaterialTheme.typography.titleMedium
+                    )
 
-                Button(
-                    onClick = {
-                        currentScreen = "tasks"
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Task System")
-                }
+                    Spacer(modifier = Modifier.height(28.dp))
 
-                Spacer(modifier = Modifier.height(12.dp))
+                    DashboardCard(
+                        title = "📍 Mobility Reminder",
+                        description = "Prüfungen speichern und Route öffnen",
+                        onClick = { currentScreen = "mobility" }
+                    )
 
-                Button(
-                    onClick = { },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Progress Tracker")
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    DashboardCard(
+                        title = "✅ Task System",
+                        description = "Aufgaben erstellen und abhaken",
+                        onClick = { currentScreen = "tasks" }
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    DashboardCard(
+                        title = "📊 Progress Tracker",
+                        description = "Fortschritt deiner Aufgaben ansehen",
+                        onClick = { currentScreen = "progress" }
+                    )
                 }
             }
         }
@@ -131,12 +143,7 @@ fun DashboardScreen(
                     .fillMaxSize()
                     .padding(16.dp)
             ) {
-
-                Button(
-                    onClick = {
-                        currentScreen = "dashboard"
-                    }
-                ) {
+                Button(onClick = { currentScreen = "dashboard" }) {
                     Text("← Zurück")
                 }
 
@@ -155,12 +162,7 @@ fun DashboardScreen(
                     .fillMaxSize()
                     .padding(16.dp)
             ) {
-
-                Button(
-                    onClick = {
-                        currentScreen = "dashboard"
-                    }
-                ) {
+                Button(onClick = { currentScreen = "dashboard" }) {
                     Text("← Zurück")
                 }
 
@@ -172,9 +174,137 @@ fun DashboardScreen(
                 )
             }
         }
+
+        "progress" -> {
+            Column(
+                modifier = modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+            ) {
+                Button(onClick = { currentScreen = "dashboard" }) {
+                    Text("← Zurück")
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                ProgressScreen(
+                    taskDao = taskDao,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
     }
 }
 
+@Composable
+fun ProgressScreen(
+    taskDao: TaskDao,
+    modifier: Modifier = Modifier
+) {
+    var taskList by remember { mutableStateOf(listOf<Task>()) }
+
+    LaunchedEffect(Unit) {
+        taskList = taskDao.getAllTasks()
+    }
+
+    val totalTasks = taskList.size
+    val doneTasks = taskList.count { it.isDone }
+    val openTasks = totalTasks - doneTasks
+
+    val progress = if (totalTasks > 0) {
+        doneTasks.toFloat() / totalTasks.toFloat()
+    } else {
+        0f
+    }
+
+    val progressPercent = (progress * 100).toInt()
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(20.dp)
+    ) {
+        Column {
+            Text(
+                text = "Progress Tracker",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp)
+                ) {
+                    Text(
+                        text = "Gesamtfortschritt",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text("Alle Aufgaben: $totalTasks")
+                    Text("Erledigt: $doneTasks")
+                    Text("Offen: $openTasks")
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "$progressPercent% erledigt",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+}
+
+
+
+@Composable
+fun DashboardCard(
+    title: String,
+    description: String,
+    onClick: () -> Unit
+) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+    }
+}
 /* ---------------- TASK SCREEN ---------------- */
 
 @Composable
@@ -275,13 +405,27 @@ fun TaskScreen(
 
                         Text(text = "Modul: ${task.moduleName}")
 
-                        Text(
-                            text = if (task.isDone) {
-                                "Status: Erledigt"
-                            } else {
-                                "Status: Offen"
-                            }
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = task.isDone,
+                                onCheckedChange = { checked ->
+                                    scope.launch {
+                                        taskDao.updateTaskStatus(task.id, checked)
+                                        taskList = taskDao.getAllTasks()
+                                    }
+                                }
+                            )
+
+                            Text(
+                                text = if (task.isDone) {
+                                    "Status: Erledigt"
+                                } else {
+                                    "Status: Offen"
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -300,11 +444,15 @@ fun MobilityReminderScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
+    var examName by remember { mutableStateOf("") }
+    var destination by remember { mutableStateOf("") }
+    var examTime by remember { mutableStateOf("") }
+    var examDate by remember { mutableStateOf("") }
+    var examList by remember { mutableStateOf(listOf<Exam>()) }
 
-    var examName by remember { mutableStateOf("Mobile Computing Prüfung") }
-    var destination by remember { mutableStateOf("TH Köln Campus Gummersbach") }
-    var examTime by remember { mutableStateOf("10:00 Uhr") }
-    var examDate by remember { mutableStateOf("20.06.2026") }
+    LaunchedEffect(Unit) {
+        examList = examDao.getAllExams()
+    }
 
     val travelTime = "Wird später berechnet"
     val leaveTime = "Wird später berechnet"
@@ -396,7 +544,13 @@ fun MobilityReminderScreen(
 
                     scope.launch {
                         examDao.insertExam(newExam)
+                        examList = examDao.getAllExams()
                     }
+
+                    examName = ""
+                    destination = ""
+                    examTime = ""
+                    examDate = ""
 
                     println("Prüfung gespeichert")
                 },
@@ -406,6 +560,40 @@ fun MobilityReminderScreen(
             }
         }
     }
+
+    Spacer(modifier = Modifier.height(24.dp))
+
+    Text(
+        text = "Gespeicherte Prüfungen",
+        style = MaterialTheme.typography.titleLarge,
+        fontWeight = FontWeight.Bold
+    )
+
+    Spacer(modifier = Modifier.height(12.dp))
+
+    examList.forEach { exam ->
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    text = exam.examName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text(text = "Datum: ${exam.examDate}")
+                Text(text = "Uhrzeit: ${exam.examTime}")
+                Text(text = "Ort: ${exam.destination}")
+            }
+        }
+    }
+
 }
 
 /* ---------------- INFO ROW ---------------- */
