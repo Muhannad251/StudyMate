@@ -1,6 +1,18 @@
 package com.example.studymate
 
 
+import android.app.AlarmManager
+import android.app.PendingIntent
+import java.text.SimpleDateFormat
+import java.util.Locale
+import android.Manifest
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import com.example.studymate.data.Task
 import com.example.studymate.data.TaskDao
 import android.content.Intent
@@ -34,6 +46,7 @@ import com.example.studymate.data.ExamDao
 import com.example.studymate.ui.theme.StudyMateTheme
 import kotlinx.coroutines.launch
 
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,7 +61,7 @@ class MainActivity : ComponentActivity() {
             .build()
 
         val examDao = db.examDao()
-        val taskDao =db.taskDao()
+        val taskDao = db.taskDao()
 
         setContent {
             StudyMateTheme {
@@ -65,8 +78,26 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-}
 
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+
+            val channel = NotificationChannel(
+                "exam_reminder_channel",
+                "Exam Reminder",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Benachrichtigungen für Prüfungen"
+            }
+
+            val notificationManager =
+                getSystemService(NotificationManager::class.java)
+
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+}
 /* ---------------- DASHBOARD ---------------- */
 
 
@@ -436,6 +467,50 @@ fun TaskScreen(
 
 /* ---------------- MOBILITY SCREEN ---------------- */
 
+
+fun scheduleExamReminders(
+    context: android.content.Context,
+    examName: String,
+    examDate: String,
+    examTime: String
+) {
+    val dateFormat = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.GERMANY)
+
+    val examDateTime = dateFormat.parse("$examDate $examTime") ?: return
+
+    val reminderTimes = listOf(
+        examDateTime.time - 7L * 24 * 60 * 60 * 1000,
+        examDateTime.time - 1L * 24 * 60 * 60 * 1000,
+        examDateTime.time - 1L * 60 * 60 * 1000
+    )
+
+    val alarmManager = context.getSystemService(AlarmManager::class.java)
+
+    reminderTimes.forEachIndexed { index, reminderTime ->
+
+        if (reminderTime > System.currentTimeMillis()) {
+            val intent = Intent(context, ExamReminderReceiver::class.java).apply {
+                putExtra("examName", examName)
+            }
+
+            val pendingIntent = PendingIntent.getBroadcast(
+                context,
+                System.currentTimeMillis().toInt() + index,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            alarmManager.setExact(
+                AlarmManager.RTC_WAKEUP,
+                reminderTime,
+                pendingIntent
+            )
+        }
+    }
+}
+
+
+
 @Composable
 fun MobilityReminderScreen(
     examDao: ExamDao,
@@ -544,6 +619,14 @@ fun MobilityReminderScreen(
 
                     scope.launch {
                         examDao.insertExam(newExam)
+
+                        scheduleExamReminders(
+                            context = context,
+                            examName = examName,
+                            examDate = examDate,
+                            examTime = examTime
+                        )
+
                         examList = examDao.getAllExams()
                     }
 
