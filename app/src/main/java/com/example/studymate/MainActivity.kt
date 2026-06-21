@@ -1,6 +1,7 @@
 package com.example.studymate
 
-
+import com.example.studymate.viewmodel.PruefungsViewModel
+import com.example.studymate.viewmodel.AufgabenViewModel
 import android.app.AlarmManager
 import android.app.PendingIntent
 import java.text.SimpleDateFormat
@@ -52,6 +53,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        // kanal für benachrichtigung
+        benachrichtigungsKanalErstellen()
+
+// erlaubnis für benachrichtigung
+        benachrichtigungsErlaubnisAnfragen()
+
+
         val db = Room.databaseBuilder(
             applicationContext,
             AppDatabase::class.java,
@@ -80,7 +88,7 @@ class MainActivity : ComponentActivity() {
     }
 
 
-    private fun createNotificationChannel() {
+    private fun benachrichtigungsKanalErstellen() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 
             val channel = NotificationChannel(
@@ -97,6 +105,24 @@ class MainActivity : ComponentActivity() {
             notificationManager.createNotificationChannel(channel)
         }
     }
+
+    private fun benachrichtigungsErlaubnisAnfragen() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+
+            val erlaubnisStatus = ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS
+            )
+
+            if (erlaubnisStatus != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                    1001
+                )
+            }
+        }
+    }
 }
 /* ---------------- DASHBOARD ---------------- */
 
@@ -108,6 +134,16 @@ fun DashboardScreen(
     modifier: Modifier = Modifier
 ) {
     var currentScreen by remember { mutableStateOf("dashboard") }
+
+    // ViewModel für aufgaben erstellen
+    val aufgabenViewModel = remember {
+        AufgabenViewModel(taskDao)
+    }
+
+    // ViewModel für prüfungen
+    val pruefungsViewModel = remember {
+        PruefungsViewModel(examDao)
+    }
 
     when (currentScreen) {
 
@@ -160,8 +196,8 @@ fun DashboardScreen(
                     Spacer(modifier = Modifier.height(14.dp))
 
                     DashboardCard(
-                        title = "📊 Progress Tracker",
                         description = "Fortschritt deiner Aufgaben ansehen",
+                        title = "📊 Progress Tracker",
                         onClick = { currentScreen = "progress" }
                     )
                 }
@@ -181,7 +217,7 @@ fun DashboardScreen(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 MobilityReminderScreen(
-                    examDao = examDao,
+                    pruefungsViewModel = pruefungsViewModel,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -200,7 +236,7 @@ fun DashboardScreen(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 TaskScreen(
-                    taskDao = taskDao,
+                    aufgabenViewModel = aufgabenViewModel,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -219,7 +255,7 @@ fun DashboardScreen(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 ProgressScreen(
-                    taskDao = taskDao,
+                    aufgabenViewModel = aufgabenViewModel,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -229,17 +265,20 @@ fun DashboardScreen(
 
 @Composable
 fun ProgressScreen(
-    taskDao: TaskDao,
+    aufgabenViewModel: AufgabenViewModel,
     modifier: Modifier = Modifier
 ) {
-    var taskList by remember { mutableStateOf(listOf<Task>()) }
+
+
+    // aufgaben aus dem ViewModel benutzen
+    val aufgabenListe = aufgabenViewModel.aufgabenListe.value
 
     LaunchedEffect(Unit) {
-        taskList = taskDao.getAllTasks()
+        aufgabenViewModel.aufgabenLaden()
     }
 
-    val totalTasks = taskList.size
-    val doneTasks = taskList.count { it.isDone }
+    val totalTasks = aufgabenListe.size
+    val doneTasks = aufgabenListe.count { it.isDone }
     val openTasks = totalTasks - doneTasks
 
     val progress = if (totalTasks > 0) {
@@ -321,36 +360,39 @@ fun DashboardCard(
         Column(
             modifier = Modifier.padding(20.dp)
         ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
 
-            Spacer(modifier = Modifier.height(6.dp))
 
             Text(
                 text = description,
                 style = MaterialTheme.typography.bodyMedium
             )
+
+            Spacer(modifier = Modifier.height(6.dp))
+            
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
         }
+
     }
 }
 /* ---------------- TASK SCREEN ---------------- */
 
 @Composable
 fun TaskScreen(
-    taskDao: TaskDao,
+    aufgabenViewModel: AufgabenViewModel,
     modifier: Modifier = Modifier
-) {
-    val scope = rememberCoroutineScope()
+)
+{
+    var aufgabenName by remember { mutableStateOf("") }
+    var modulName by remember { mutableStateOf("") }
 
-    var taskTitle by remember { mutableStateOf("") }
-    var moduleName by remember { mutableStateOf("") }
-    var taskList by remember { mutableStateOf(listOf<Task>()) }
+    val aufgabenListe = aufgabenViewModel.aufgabenListe.value
 
     LaunchedEffect(Unit) {
-        taskList = taskDao.getAllTasks()
+        aufgabenViewModel.aufgabenLaden()
     }
 
     Box(
@@ -358,7 +400,12 @@ fun TaskScreen(
             .fillMaxSize()
             .padding(20.dp)
     ) {
-        Column {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+        ) {
+
 
             Text(
                 text = "Task Manager",
@@ -369,8 +416,8 @@ fun TaskScreen(
             Spacer(modifier = Modifier.height(20.dp))
 
             OutlinedTextField(
-                value = taskTitle,
-                onValueChange = { taskTitle = it },
+                value = aufgabenName,
+                onValueChange = { aufgabenName = it },
                 label = { Text("Task Name") },
                 modifier = Modifier.fillMaxWidth()
             )
@@ -378,8 +425,8 @@ fun TaskScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             OutlinedTextField(
-                value = moduleName,
-                onValueChange = { moduleName = it },
+                value = modulName,
+                onValueChange = { modulName = it },
                 label = { Text("Modul Name") },
                 modifier = Modifier.fillMaxWidth()
             )
@@ -388,19 +435,13 @@ fun TaskScreen(
 
             Button(
                 onClick = {
-                    val newTask = Task(
-                        title = taskTitle,
-                        moduleName = moduleName,
-                        isDone = false
+                    aufgabenViewModel.aufgabeSpeichern(
+                        aufgabenName = aufgabenName,
+                        modulName = modulName
                     )
 
-                    scope.launch {
-                        taskDao.insertTask(newTask)
-                        taskList = taskDao.getAllTasks()
-                    }
-
-                    taskTitle = ""
-                    moduleName = ""
+                    aufgabenName = ""
+                    modulName = ""
                     println("Task gespeichert")
                 },
                 modifier = Modifier.fillMaxWidth()
@@ -418,7 +459,7 @@ fun TaskScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            taskList.forEach { task ->
+            aufgabenListe.forEach { task ->
 
                 Card(
                     modifier = Modifier
@@ -442,10 +483,10 @@ fun TaskScreen(
                             Checkbox(
                                 checked = task.isDone,
                                 onCheckedChange = { checked ->
-                                    scope.launch {
-                                        taskDao.updateTaskStatus(task.id, checked)
-                                        taskList = taskDao.getAllTasks()
-                                    }
+                                    aufgabenViewModel.aufgabenStatusAendern(
+                                        aufgabeId = task.id,
+                                        erledigt = checked
+                                    )
                                 }
                             )
 
@@ -479,6 +520,7 @@ fun scheduleExamReminders(
     val examDateTime = dateFormat.parse("$examDate $examTime") ?: return
 
     val reminderTimes = listOf(
+        System.currentTimeMillis() + 30_000L, // test alarm nach 30 sekunden
         examDateTime.time - 7L * 24 * 60 * 60 * 1000,
         examDateTime.time - 1L * 24 * 60 * 60 * 1000,
         examDateTime.time - 1L * 60 * 60 * 1000
@@ -500,9 +542,8 @@ fun scheduleExamReminders(
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
-            alarmManager.setExact(
-                AlarmManager.RTC_WAKEUP,
-                reminderTime,
+            alarmManager.setAlarmClock(
+                AlarmManager.AlarmClockInfo(reminderTime, pendingIntent),
                 pendingIntent
             )
         }
@@ -513,20 +554,21 @@ fun scheduleExamReminders(
 
 @Composable
 fun MobilityReminderScreen(
-    examDao: ExamDao,
+    pruefungsViewModel: PruefungsViewModel,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
 
     var examName by remember { mutableStateOf("") }
     var destination by remember { mutableStateOf("") }
     var examTime by remember { mutableStateOf("") }
     var examDate by remember { mutableStateOf("") }
-    var examList by remember { mutableStateOf(listOf<Exam>()) }
+
+// prüfungen kommen jetzt aus ViewModel
+    val pruefungsListe = pruefungsViewModel.pruefungsListe.value
 
     LaunchedEffect(Unit) {
-        examList = examDao.getAllExams()
+        pruefungsViewModel.pruefungenLaden()
     }
 
     val travelTime = "Wird später berechnet"
@@ -610,25 +652,13 @@ fun MobilityReminderScreen(
 
             Button(
                 onClick = {
-                    val newExam = Exam(
-                        examName = examName,
-                        destination = destination,
-                        examTime = examTime,
-                        examDate = examDate
+                    pruefungsViewModel.pruefungSpeichern(
+                        context = context,
+                        pruefungsName = examName,
+                        zielOrt = destination,
+                        pruefungsZeit = examTime,
+                        pruefungsDatum = examDate
                     )
-
-                    scope.launch {
-                        examDao.insertExam(newExam)
-
-                        scheduleExamReminders(
-                            context = context,
-                            examName = examName,
-                            examDate = examDate,
-                            examTime = examTime
-                        )
-
-                        examList = examDao.getAllExams()
-                    }
 
                     examName = ""
                     destination = ""
@@ -641,41 +671,47 @@ fun MobilityReminderScreen(
             ) {
                 Text("Prüfung speichern")
             }
-        }
-    }
 
-    Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-    Text(
-        text = "Gespeicherte Prüfungen",
-        style = MaterialTheme.typography.titleLarge,
-        fontWeight = FontWeight.Bold
-    )
+            Text(
+                text = "Gespeicherte Prüfungen",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
 
-    Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-    examList.forEach { exam ->
+            pruefungsListe.forEach { exam ->
 
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 12.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Text(
-                    text = exam.examName,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text(
+                            text = exam.examName,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
 
-                Text(text = "Datum: ${exam.examDate}")
-                Text(text = "Uhrzeit: ${exam.examTime}")
-                Text(text = "Ort: ${exam.destination}")
+                        Text(text = "Datum: ${exam.examDate}")
+                        Text(text = "Uhrzeit: ${exam.examTime}")
+                        Text(text = "Ort: ${exam.destination}")
+                    }
+                }
             }
-        }
+
+          }
     }
+
+
+
+
+
 
 }
 
