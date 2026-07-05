@@ -639,13 +639,14 @@ fun MobilityReminderScreen(
 
             Button(
                 onClick = {
-                    val uri = Uri.parse("geo:0,0?q=${Uri.encode(destination)}")
+                    // mobiles feature: navigation zum zielort
+                    val uri = Uri.parse("google.navigation:q=${Uri.encode(destination)}")
                     val intent = Intent(Intent.ACTION_VIEW, uri)
                     context.startActivity(intent)
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Route in Google Maps öffnen")
+                Text("Navigation zum Prüfungsort starten")
             }
 
             Spacer(modifier = Modifier.height(12.dp))
