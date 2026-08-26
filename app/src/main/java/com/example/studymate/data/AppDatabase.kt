@@ -5,9 +5,10 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [Exam::class, Task::class],
-    version = 2
+    version = 2,
+    exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase(){
     abstract fun examDao() : ExamDao
-    abstract fun taskDao():TaskDao
+    abstract fun taskDao(): TaskDao
 }

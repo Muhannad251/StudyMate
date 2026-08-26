@@ -1,5 +1,7 @@
 package com.example.studymate
 
+import com.example.studymate.viewmodel.GruppenViewModel
+import com.example.studymate.ui.GruppenScreen
 import com.example.studymate.viewmodel.PruefungsViewModel
 import com.example.studymate.viewmodel.AufgabenViewModel
 import android.app.AlarmManager
@@ -145,6 +147,10 @@ fun DashboardScreen(
         PruefungsViewModel(examDao)
     }
 
+    val gruppenViewModel = remember {
+        GruppenViewModel()
+    }
+
     when (currentScreen) {
 
         "dashboard" -> {
@@ -199,6 +205,14 @@ fun DashboardScreen(
                         description = "Fortschritt deiner Aufgaben ansehen",
                         title = "📊 Progress Tracker",
                         onClick = { currentScreen = "progress" }
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    DashboardCard(
+                        title = "👥 Task Gruppen",
+                        description = "Gemeinsame Aufgaben online bearbeiten",
+                        onClick = { currentScreen = "gruppen" }
                     )
                 }
             }
@@ -260,6 +274,25 @@ fun DashboardScreen(
                 )
             }
         }
+        "gruppen" -> {
+            Column(
+                modifier = modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+            ) {
+                Button(onClick = { currentScreen = "dashboard" }) {
+                    Text("← Zurück")
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                GruppenScreen(
+                    gruppenViewModel = gruppenViewModel,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
     }
 }
 
