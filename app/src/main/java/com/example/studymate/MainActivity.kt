@@ -1,5 +1,8 @@
 package com.example.studymate
 
+import com.example.studymate.ui.LoginScreen
+import com.google.firebase.auth.FirebaseAuth
+import androidx.activity.compose.BackHandler
 import com.example.studymate.viewmodel.GruppenViewModel
 import com.example.studymate.ui.GruppenScreen
 import com.example.studymate.viewmodel.PruefungsViewModel
@@ -73,21 +76,43 @@ class MainActivity : ComponentActivity() {
         val examDao = db.examDao()
         val taskDao = db.taskDao()
 
+
         setContent {
             StudyMateTheme {
-                Scaffold(
-                    modifier = Modifier.fillMaxSize()
-                ) { innerPadding ->
 
-                    DashboardScreen(
-                        examDao = examDao,
-                        taskDao = taskDao,
-                        modifier = Modifier.padding(innerPadding)
+                val auth = FirebaseAuth.getInstance()
+
+                var istEingeloggt by remember {
+                    mutableStateOf(
+                        auth.currentUser != null &&
+                                auth.currentUser?.isAnonymous == false
+                    )
+                }
+
+                if (istEingeloggt) {
+
+                    Scaffold(
+                        modifier = Modifier.fillMaxSize()
+                    ) { innerPadding ->
+
+                        DashboardScreen(
+                            examDao = examDao,
+                            taskDao = taskDao,
+                            modifier = Modifier.padding(innerPadding)
+                        )
+                    }
+
+                } else {
+
+                    LoginScreen(
+                        onLoginErfolgreich = {
+                            istEingeloggt = true
+                        }
                     )
                 }
             }
         }
-    }
+        }
 
 
     private fun benachrichtigungsKanalErstellen() {
@@ -137,6 +162,10 @@ fun DashboardScreen(
 ) {
     var currentScreen by remember { mutableStateOf("dashboard") }
 
+    BackHandler(enabled = currentScreen != "dashboard") {
+        currentScreen = "dashboard"
+    }
+
     // ViewModel für aufgaben erstellen
     val aufgabenViewModel = remember {
         AufgabenViewModel(taskDao)
@@ -147,8 +176,10 @@ fun DashboardScreen(
         PruefungsViewModel(examDao)
     }
 
+    val context = LocalContext.current
+
     val gruppenViewModel = remember {
-        GruppenViewModel()
+        GruppenViewModel(context.applicationContext)
     }
 
     when (currentScreen) {
@@ -548,38 +579,75 @@ fun scheduleExamReminders(
     examDate: String,
     examTime: String
 ) {
-    val dateFormat = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.GERMANY)
+    try {
+        // datum und uhrzeit lesen
+        val dateFormat = SimpleDateFormat(
+            "dd.MM.yyyy HH:mm",
+            Locale.GERMANY
+        )
 
-    val examDateTime = dateFormat.parse("$examDate $examTime") ?: return
+        // falsche datum eingaben nicht erlauben
+        dateFormat.isLenient = false
 
-    val reminderTimes = listOf(
-        System.currentTimeMillis() + 30_000L, // test alarm nach 30 sekunden
-        examDateTime.time - 7L * 24 * 60 * 60 * 1000,
-        examDateTime.time - 1L * 24 * 60 * 60 * 1000,
-        examDateTime.time - 1L * 60 * 60 * 1000
-    )
+        val examDateTime = dateFormat.parse(
+            "$examDate $examTime"
+        ) ?: return
 
-    val alarmManager = context.getSystemService(AlarmManager::class.java)
+        // erinnerungen planen
+        val reminderTimes = listOf(
+            System.currentTimeMillis() + 30_000L, // test nach 30 sekunden
+            examDateTime.time - 7L * 24 * 60 * 60 * 1000,
+            examDateTime.time - 1L * 24 * 60 * 60 * 1000,
+            examDateTime.time - 1L * 60 * 60 * 1000
+        )
 
-    reminderTimes.forEachIndexed { index, reminderTime ->
+        val alarmManager =
+            context.getSystemService(AlarmManager::class.java)
 
-        if (reminderTime > System.currentTimeMillis()) {
-            val intent = Intent(context, ExamReminderReceiver::class.java).apply {
-                putExtra("examName", examName)
+        reminderTimes.forEachIndexed { index, erinnerungsZeit ->
+
+            if (erinnerungsZeit > System.currentTimeMillis()) {
+
+                val intent = Intent(
+                    context,
+                    ExamReminderReceiver::class.java
+                ).apply {
+                    putExtra("examName", examName)
+                }
+
+                val pendingIntent = PendingIntent.getBroadcast(
+                    context,
+                    examName.hashCode() + index,
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or
+                            PendingIntent.FLAG_IMMUTABLE
+                )
+
+                if (
+                    Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+                    alarmManager.canScheduleExactAlarms()
+                ) {
+                    alarmManager.setAlarmClock(
+                        AlarmManager.AlarmClockInfo(
+                            erinnerungsZeit,
+                            pendingIntent
+                        ),
+                        pendingIntent
+                    )
+                } else {
+                    alarmManager.set(
+                        AlarmManager.RTC_WAKEUP,
+                        erinnerungsZeit,
+                        pendingIntent
+                    )
+                }
             }
-
-            val pendingIntent = PendingIntent.getBroadcast(
-                context,
-                System.currentTimeMillis().toInt() + index,
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-
-            alarmManager.setAlarmClock(
-                AlarmManager.AlarmClockInfo(reminderTime, pendingIntent),
-                pendingIntent
-            )
         }
+
+    } catch (fehler: Exception) {
+        println(
+            "Erinnerung konnte nicht geplant werden: ${fehler.message}"
+        )
     }
 }
 
@@ -735,6 +803,26 @@ fun MobilityReminderScreen(
                         Text(text = "Datum: ${exam.examDate}")
                         Text(text = "Uhrzeit: ${exam.examTime}")
                         Text(text = "Ort: ${exam.destination}")
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Button(
+                            onClick = {
+                                val uri = Uri.parse(
+                                    "google.navigation:q=${Uri.encode(exam.destination)}"
+                                )
+
+                                val intent = Intent(
+                                    Intent.ACTION_VIEW,
+                                    uri
+                                )
+
+                                context.startActivity(intent)
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Navigation starten")
+                        }
                     }
                 }
             }

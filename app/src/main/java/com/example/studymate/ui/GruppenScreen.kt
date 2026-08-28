@@ -1,5 +1,9 @@
 package com.example.studymate.ui
 
+import android.graphics.Bitmap
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import android.Manifest
 import android.content.pm.PackageManager
 import android.widget.Toast
@@ -40,22 +44,35 @@ fun GruppenScreen(
     var modulName by remember { mutableStateOf("") }
     var ausgewaehlteAufgabeId by remember { mutableStateOf("") }
 
+    var nachrichtText by remember { mutableStateOf("") }
+
+    var beweisBild by remember {
+        mutableStateOf<Bitmap?>(null)
+    }
     val statusText = gruppenViewModel.statusText.value
     val aktiveGruppenId = gruppenViewModel.aktiveGruppenId.value
     val aktiverGruppenName = gruppenViewModel.aktiverGruppenName.value
     val aktiverGruppenCode = gruppenViewModel.aktiverGruppenCode.value
     val gruppenAufgaben = gruppenViewModel.gruppenAufgabenListe.value
+    val meineGruppen = gruppenViewModel.meineGruppenListe.value
+    val gruppenNachrichten = gruppenViewModel.gruppenNachrichtenListe.value
+    val aktuelleUserId = gruppenViewModel.aktuelleUserId.value
 
     val kameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicturePreview()
     ) { bild ->
+
         if (bild != null && ausgewaehlteAufgabeId.isNotBlank()) {
-            gruppenViewModel.aufgabeMitBeweisErledigen(ausgewaehlteAufgabeId)
+
+            // foto erstmal nur für die vorschau speichern
+            beweisBild = bild
+
             Toast.makeText(
                 context,
-                "Foto aufgenommen. Aufgabe erledigt.",
+                "Foto aufgenommen. Bitte Beweis bestätigen.",
                 Toast.LENGTH_SHORT
             ).show()
+
         } else {
             Toast.makeText(
                 context,
@@ -205,6 +222,78 @@ fun GruppenScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
+        Text(
+            text = "Meine Gruppen",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (meineGruppen.isEmpty()) {
+
+            Text(
+                text = "Du bist noch in keiner Gruppe."
+            )
+
+        } else {
+
+            meineGruppen.forEach { gruppe ->
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                    elevation = CardDefaults.cardElevation(
+                        defaultElevation = 3.dp
+                    )
+                ) {
+
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+
+                        Text(
+                            text = gruppe.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Text(
+                            text = "Code: ${gruppe.code}"
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Button(
+                            onClick = {
+                                gruppenViewModel.gruppeOeffnen(gruppe)
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+
+                            Text("Gruppe öffnen")
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Button(
+                            onClick = {
+                                gruppenViewModel.gruppeVerlassen(gruppe.id)
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Gruppe verlassen")
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
         if (aktiveGruppenId.isNotBlank()) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -328,10 +417,133 @@ fun GruppenScreen(
                             ) {
                                 Text("Mit Kamera-Beweis erledigen")
                             }
+                            if (
+                                beweisBild != null &&
+                                ausgewaehlteAufgabeId == aufgabe.id
+                            ) {
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                Text(
+                                    text = "Beweis-Vorschau",
+                                    fontWeight = FontWeight.Bold
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Image(
+                                    bitmap = beweisBild!!.asImageBitmap(),
+                                    contentDescription = "Kamera-Beweis",
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(220.dp),
+                                    contentScale = ContentScale.Crop
+                                )
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                Button(
+                                    onClick = {
+                                        gruppenViewModel.aufgabeMitBeweisErledigen(
+                                            aufgabe.id
+                                        )
+
+                                        // vorschau danach entfernen
+                                        beweisBild = null
+                                        ausgewaehlteAufgabeId = ""
+
+                                        Toast.makeText(
+                                            context,
+                                            "Beweis bestätigt. Aufgabe erledigt.",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Beweis bestätigen")
+                                }
+                            }
                         }
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "Gruppenchat",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (gruppenNachrichten.isEmpty()) {
+                Text("Noch keine Nachrichten vorhanden.")
+            }
+
+            gruppenNachrichten.forEach { nachricht ->
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                    elevation = CardDefaults.cardElevation(
+                        defaultElevation = 2.dp
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp)
+                    ) {
+
+                        Text(
+                            text = if (nachricht.absenderId == aktuelleUserId) {
+                                "${nachricht.absenderName} (Du)"
+                            } else {
+                                nachricht.absenderName
+                            },
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Text(
+                            text = nachricht.text
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = nachrichtText,
+                onValueChange = { nachrichtText = it },
+                label = {
+                    Text("Nachricht schreiben")
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Button(
+                onClick = {
+
+                    if (nachrichtText.isNotBlank()) {
+
+                        gruppenViewModel.nachrichtSenden(
+                            nachrichtText
+                        )
+
+                        nachrichtText = ""
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Senden")
+            }
+
         } else {
             Text(
                 text = "Erstelle eine Gruppe oder tritt einer Gruppe bei, um Aufgaben zu teilen."
